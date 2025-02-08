@@ -1,68 +1,57 @@
-# Cloudflare DDNS for UniFi OS
+# 🌩️ Cloudflare DDNS for UniFi OS
 
-A Cloudflare Worker script that provides a UniFi-compatible DDNS API to dynamically update the IP address of a DNS A record.
+[![CodeQL](https://github.com/willswire/unifi-ddns/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/willswire/unifi-ddns/actions/workflows/github-code-scanning/codeql)
+[![Code Coverage](https://github.com/willswire/unifi-ddns/actions/workflows/coverage.yml/badge.svg)](https://github.com/willswire/unifi-ddns/actions/workflows/coverage.yml)
+[![Dependabot Updates](https://github.com/willswire/unifi-ddns/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/willswire/unifi-ddns/actions/workflows/dependabot/dependabot-updates)
+[![Deploy](https://github.com/willswire/unifi-ddns/actions/workflows/deploy.yml/badge.svg)](https://github.com/willswire/unifi-ddns/actions/workflows/deploy.yml)
 
-## Why?
+A Cloudflare Worker script that enables UniFi devices (e.g., UDM-Pro, USG) to dynamically update DNS A/AAAA records on Cloudflare.
 
-UniFi Dream Machine Pro (UDM-Pro) or UniFi Security Gateway (USG) users may need to update Cloudflare domain name DNS records when their public IP address changes. UniFi does not natively support Cloudflare as a DDNS provider.
+## Why Use This?
 
-### Configuring Cloudflare
+UniFi devices do not natively support Cloudflare as a DDNS provider. This script bridges that gap, allowing your UniFi device to keep your DNS records updated with your public IP address.
 
-Ensure you have a Cloudflare account and your domain is configured to point to Cloudflare nameservers.
+## 🚀 **Setup Overview**
 
-#### Install With Click To Deploy
+### 1. **Deploy the Cloudflare Worker**
 
-1. Deploy the Worker: [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/workerforce/unifi-ddns)
-2. Navigate to the Cloudflare Workers dashboard.
-3. After deployment, note the `\*.workers.dev` route.
-4. Create an API token to update DNS records: 
-   - Go to https://dash.cloudflare.com/profile/api-tokens.
-   - Click "Create token", select "Create Custom Token".
-   - Choose "Edit Cloudflare Workers" Template
-   - Select "+Add More"
-   - Choose **Zone:DNS:Edit** for permissions, and include your zone under "Zone Resources". 
-   - Copy your API Key for later use in UniFi OS Controller configuration.
+#### **Option 1: Click to Deploy**
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/willswire/unifi-ddns)
 
-#### Install With Wrangler CLI
+1. Click the button above.
+2. Complete the deployment.
+3. Note the `*.workers.dev` route.
 
-1. Clone or download this project.
-2. Ensure you have [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) installed.
-3. Log in with Wrangler and run `wrangler deploy`.
-4. Note the `\*.workers.dev` route after creation.
-5. Create an API token as described above.
+#### **Option 2: Deploy with Wrangler CLI**
+1. Clone this repository.
+2. Install [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/).
+3. Run:
+   ```sh
+   wrangler login
+   wrangler deploy
+   ```
+4. Note the `*.workers.dev` route.
 
-### Configuring UniFi OS
+### 2. **Generate a Cloudflare API Token**
+
+1. Go to the [Cloudflare Dashboard](https://dash.cloudflare.com/).
+2. Navigate to **Profile > API Tokens**
+3. Create a token using the **Edit zone DNS** template.
+4. Scope the token to **one** specific zone.
+5. Save the token securely.
+
+### 3. **Configure UniFi OS**
 
 1. Log in to your [UniFi OS Controller](https://unifi.ui.com/).
-2. Navigate to Settings > Internet > WAN and scroll down to **Dynamic DNS**.
-3. Click **Create New Dynamic DNS** and provide:
-   - `Service`: Choose `custom` or `dyndns`.
-   - `Hostname`: Full subdomain and hostname to update (e.g., `subdomain.mydomain.com` or `mydomain.com` for root domain).
-   - `Username`: Domain name containing the record (e.g., `mydomain.com`).
-   - `Password`: Cloudflare API Token.
-   - `Server`: Cloudflare Worker route `<worker-name>.<worker-subdomain>.workers.dev/update?ip=%i&hostname=%h`.
-     - For older UniFi devices, omit the URL path.
-     - Remove `https://` from the URL.
+2. Go to **Settings > Internet > WAN > Dynamic DNS**.
+3. Create New Dynamic DNS with the following information:
+   - **Service:** `custom`
+   - **Hostname:** `subdomain.example.com` or `example.com`
+   - **Username:** Cloudflare Account Email Address (e.g., `you@example.com`)
+   - **Password:** Cloudflare User API Token *(not an Account API Token)*
+   - **Server:** `<worker-name>.<worker-subdomain>.workers.dev/update?ip=%i&hostname=%h`
+     *(Omit `https://`)*
 
-#### Testing Changes - UDM-Pro
-To test the configuration and force an update on a UDM-Pro:
+## 🛠️ **Testing & Troubleshooting**
 
-1. SSH into your UniFi device.
-2. Run `ps aux | grep inadyn`.
-3. Note the configuration file path.
-4. Run `inadyn -n -1 --force -f <config-path>` (e.g., `inadyn -n -1 --force -f /run/ddns-eth4-inadyn.conf`).
-5. Check `/var/log/messages` for related error messages.
-
-#### Testing Changes - USG
-To test the configuration and force an update on a USG:
-
-1. SSH into your USG device.
-2. Run `ls /run/ddclient/` (e.g.: `/run/ddclient/ddclient_eth0.pid`)
-3. Note the pid file path as this will tell you what configuration to use. (e.g.: `ddclient_eth0`)
-4. Run `sudo ddclient -daemon=0 -verbose -noquiet -debug -file /etc/ddclient/<config>.conf` (e.g., `sudo ddclient -daemon=0 -verbose -noquiet -debug -file /etc/ddclient/ddclient_eth0.conf`).
-5. This should output `SUCCESS` when the DNS record is set.
-
-#### Important Notes!
-
-- For subdomains (`sub.example.com`), create an A record manually in Cloudflare dashboard first.
-- If you encounter a hostname resolution error (`inadyn[2173778]: Failed resolving hostname https: Name or service not known`), remove `https://` from the `Server` field.
+Using this script with various Ubiquiti devices and different UniFi software versions can introduce unique challenges. If you encounter issues, start by checking the FAQ in `/docs/faq.md`. If you don’t find a solution, you can ask a question on the [discussions page](https://github.com/willswire/unifi-ddns/discussions/new?category=q-a). If the problem persists, please raise an issue [here](https://github.com/willswire/unifi-ddns/issues).
